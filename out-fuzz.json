@@ -1,0 +1,261 @@
+{
+  "experiment": "authority-fence/1",
+  "claim": "a fresh read cannot establish NOT_APPLIED; only the admitting store can, and only within a bounded scope",
+  "arms": [
+    {
+      "arm": "A_unfenced_delayed_apply_succeeds",
+      "read_at_t0": {
+        "subject": "agent-x",
+        "presented_epoch": 1,
+        "store_epoch": 1,
+        "revoked": false,
+        "valid_now": true,
+        "read_at_index": 0,
+        "head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090"
+      },
+      "revocation": {
+        "revoked_at_index": 1,
+        "new_epoch": 2,
+        "head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240"
+      },
+      "apply_receipt": {
+        "schema": "authority-fence-witness/1",
+        "decision": "APPLIED",
+        "scope": {
+          "store_id": "A-unfenced",
+          "subject": "agent-x",
+          "request_key": "req-1"
+        },
+        "presented": {
+          "grant_id": "grant-agent-x-1",
+          "epoch": 1
+        },
+        "observed": {
+          "store_epoch": 2,
+          "revoked": true
+        },
+        "position": {
+          "log_index": 2,
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "5188578029aa3de27baf57b685a64bb8c6795b49c20e3a074762eca6168d1451"
+        },
+        "issued_by": "store:admission",
+        "replay": false
+      },
+      "effects": [
+        "req-1"
+      ],
+      "log": [
+        {
+          "index": 0,
+          "kind": "GRANT",
+          "subject": "agent-x",
+          "epoch": 1,
+          "request_key": null,
+          "prev_head": "0000000000000000000000000000000000000000000000000000000000000000",
+          "head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090"
+        },
+        {
+          "index": 1,
+          "kind": "REVOKE",
+          "subject": "agent-x",
+          "epoch": 2,
+          "request_key": null,
+          "prev_head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090",
+          "head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240"
+        },
+        {
+          "index": 2,
+          "kind": "APPLIED",
+          "subject": "agent-x",
+          "epoch": 1,
+          "request_key": "req-1",
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "5188578029aa3de27baf57b685a64bb8c6795b49c20e3a074762eca6168d1451"
+        }
+      ],
+      "conclusion": "the read was true when taken and bounded nothing after it; the apply landed at log index 2, after the revoke at index 1"
+    },
+    {
+      "arm": "B_fenced_delayed_apply_refused",
+      "read_at_t0": {
+        "subject": "agent-x",
+        "presented_epoch": 1,
+        "store_epoch": 1,
+        "revoked": false,
+        "valid_now": true,
+        "read_at_index": 0,
+        "head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090"
+      },
+      "revocation": {
+        "revoked_at_index": 1,
+        "new_epoch": 2,
+        "head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240"
+      },
+      "witness": {
+        "schema": "authority-fence-witness/1",
+        "decision": "NOT_APPLIED",
+        "reason": "FENCE_STALE",
+        "scope": {
+          "store_id": "B-fenced",
+          "subject": "agent-x",
+          "request_key": "req-1"
+        },
+        "presented": {
+          "grant_id": "grant-agent-x-1",
+          "epoch": 1
+        },
+        "observed": {
+          "store_epoch": 2,
+          "revoked": true
+        },
+        "position": {
+          "log_index": 2,
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "c5d9e5fbf727b262d1ce8d07d8a44dcac97e86f552e5e0d186462f43f00956eb"
+        },
+        "issued_by": "store:admission",
+        "binding": "at_most_once_admission_of_this_request_key_at_this_store",
+        "does_not_claim": [
+          "no effect outside this store",
+          "exactly-once end to end",
+          "the worker stopped running",
+          "a global order of wall-clock time"
+        ],
+        "permit_retry": true
+      },
+      "effects": [],
+      "log": [
+        {
+          "index": 0,
+          "kind": "GRANT",
+          "subject": "agent-x",
+          "epoch": 1,
+          "request_key": null,
+          "prev_head": "0000000000000000000000000000000000000000000000000000000000000000",
+          "head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090"
+        },
+        {
+          "index": 1,
+          "kind": "REVOKE",
+          "subject": "agent-x",
+          "epoch": 2,
+          "request_key": null,
+          "prev_head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090",
+          "head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240"
+        },
+        {
+          "index": 2,
+          "kind": "REFUSED",
+          "subject": "agent-x",
+          "epoch": 1,
+          "request_key": "req-1",
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "c5d9e5fbf727b262d1ce8d07d8a44dcac97e86f552e5e0d186462f43f00956eb"
+        }
+      ],
+      "conclusion": "the same read, the same delay, the opposite outcome: the difference is not better reading, it is a write the store made on the worker's behalf"
+    },
+    {
+      "arm": "C_read_only_observer_cannot_seal",
+      "revocation": {
+        "revoked_at_index": 1,
+        "new_epoch": 2,
+        "head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240"
+      },
+      "naive_conclusion_before_apply": {
+        "schema": "authority-fence-witness/1",
+        "decision": "NOT_APPLIED",
+        "reason": "ABSENCE_OF_RECORD",
+        "issued_by": "reader:third-party",
+        "unsound": true
+      },
+      "honest_conclusion_before_apply": {
+        "schema": "authority-fence-witness/1",
+        "decision": "UNKNOWN",
+        "reason": "NO_ADMISSION_AUTHORITY",
+        "detail": "absence of an APPLIED record at read time is compatible with an admitted-but-not-yet-logged apply, an in-flight apply, and a genuinely refused apply",
+        "observer_capability": "read_only",
+        "issued_by": "reader:third-party",
+        "polls": 3,
+        "permit_retry": false,
+        "escalate": [
+          "obtain a store-issued NOT_APPLIED witness",
+          "or read a durable idempotency record under the same key"
+        ]
+      },
+      "late_apply_receipt": {
+        "schema": "authority-fence-witness/1",
+        "decision": "APPLIED",
+        "scope": {
+          "store_id": "C-unfenced",
+          "subject": "agent-x",
+          "request_key": "req-1"
+        },
+        "presented": {
+          "grant_id": "grant-agent-x-1",
+          "epoch": 1
+        },
+        "observed": {
+          "store_epoch": 2,
+          "revoked": true
+        },
+        "position": {
+          "log_index": 2,
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "5188578029aa3de27baf57b685a64bb8c6795b49c20e3a074762eca6168d1451"
+        },
+        "issued_by": "store:admission",
+        "replay": false
+      },
+      "honest_conclusion_after_apply": {
+        "schema": "authority-fence-witness/1",
+        "decision": "APPLIED",
+        "reason": "RECORD_PRESENT_IN_LOG",
+        "issued_by": "reader:third-party",
+        "binding": "existence only; says nothing about how many times",
+        "permit_retry": false
+      },
+      "falsified": true,
+      "conclusion": "the reader's NOT_APPLIED was refuted 1 step later by the same log it was read from; UNKNOWN with permit_retry=false was the only claim that stayed true"
+    }
+  ],
+  "controls": [
+    {
+      "mode": "correct_fence",
+      "trials": 200,
+      "applied_after_revoke": 0,
+      "examples": [],
+      "expectation": "0 (no admission after revocation)",
+      "pass": true
+    },
+    {
+      "mode": "broken_fence_positive_control",
+      "trials": 200,
+      "applied_after_revoke": 103,
+      "examples": [
+        {
+          "trial": 2,
+          "revoke_index": 1,
+          "applied_index": 2
+        },
+        {
+          "trial": 3,
+          "revoke_index": 1,
+          "applied_index": 2
+        }
+      ],
+      "expectation": ">0 (the control must be able to fail)",
+      "pass": true
+    }
+  ],
+  "summary": {
+    "A_applied_after_revocation": true,
+    "B_refused_with_witness": true,
+    "B_witness_issued_by": "store:admission",
+    "C_naive_reader_claim_falsified": true,
+    "C_honest_decision": "UNKNOWN",
+    "C_permit_retry": false
+  },
+  "all_expectations_met": true
+}
