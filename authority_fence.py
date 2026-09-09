@@ -85,10 +85,12 @@ class Store:
       I1  epoch[subject] is monotonically non-decreasing.
       I2  admission (read epoch + decide + append) happens in ONE critical
           section. A check outside the lock is the bug this file exists for.
-      I3  for a given (subject, request_key) the log contains at most one
-          APPLIED entry.
+      I3  idempotency is scoped by (subject, request_key): the log contains at
+          most one APPLIED entry for that tuple; the same key may be used by
+          another subject without replaying this subject's receipt.
       I4  a NOT_APPLIED witness is issued only by the admission path and names
-          a log position; a reader can verify it, no reader can mint it.
+          a log position; it is scoped to this store and the presented subject
+          and epoch. It does not reserve/seal the request_key for later calls.
       I5  no APPLIED entry exists whose epoch is stale w.r.t. the epoch at its
           own log index, when the fence is enforced.
     """
@@ -109,7 +111,9 @@ class Store:
         self.head = "0" * 64
         self._epoch: dict[str, int] = {}
         self._revoked: dict[str, bool] = {}
-        self._idem: dict[str, dict] = {}          # request_key -> receipt
+        # Idempotency is deliberately subject-scoped: a request key is not a
+        # global namespace shared by unrelated subjects.
+        self._idem: dict[tuple[str, str], dict] = {}  # (subject, request_key) -> receipt
         self.effects: list[str] = []              # the side effect being guarded
 
     # --- append-only hash-chained log -------------------------------------
@@ -189,8 +193,9 @@ class Store:
         if gap:
             gap()                          # revocation lands BEFORE the lock
         with self._lock:
-            if request_key in self._idem:
-                r = dict(self._idem[request_key])
+            idem_key = (a.subject, request_key)
+            if idem_key in self._idem:
+                r = dict(self._idem[idem_key])
                 r["replay"] = True
                 return r
             if self.enforce_fence and self._is_stale_locked(a):
@@ -223,7 +228,7 @@ class Store:
             "issued_by": "store:admission",
             "replay": False,
         }
-        self._idem[request_key] = dict(receipt)
+        self._idem[(a.subject, request_key)] = dict(receipt)
         return receipt
 
     def _refuse(self, a: Authority, request_key: str, reason: str) -> dict:
@@ -240,15 +245,16 @@ class Store:
             "position": {"log_index": e.index, "prev_head": e.prev_head,
                          "head": e.head},
             "issued_by": "store:admission",
-            "binding": "at_most_once_admission_of_this_request_key_at_this_store",
+            "binding": "refused_at_this_store_for_this_subject_and_presented_epoch",
             "does_not_claim": [
                 "no effect outside this store",
+                "that this request_key is sealed or reserved",
                 "exactly-once end to end",
                 "the worker stopped running",
                 "a global order of wall-clock time",
             ],
-            # A store-issued NOT_APPLIED is definite: the effect was refused
-            # here, so a retry under fresh authority cannot duplicate it.
+            # Definite only for this admission attempt: the effect was refused
+            # here at this position. A later call must be evaluated afresh.
             "permit_retry": True,
         }
 

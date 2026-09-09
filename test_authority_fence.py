@@ -33,6 +33,21 @@ class TestInvariants(unittest.TestCase):
         applied = [e for e in s.log if e.kind == "APPLIED"]
         self.assertEqual(len(applied), 1)
 
+    # I3 — request keys are scoped by subject, not globally shared
+    def test_same_request_key_can_be_used_by_another_subject(self):
+        s = Store()
+        ax = s.grant("x")
+        ay = s.grant("y")
+        rx = s.apply_effect(ax, "shared-key")
+        ry = s.apply_effect(ay, "shared-key")
+        self.assertEqual(rx["decision"], "APPLIED")
+        self.assertEqual(ry["decision"], "APPLIED")
+        self.assertFalse(ry["replay"])
+        self.assertEqual(s.effects, ["shared-key", "shared-key"])
+        applied = [e for e in s.log if e.kind == "APPLIED"]
+        self.assertEqual([(e.subject, e.request_key) for e in applied],
+                         [("x", "shared-key"), ("y", "shared-key")])
+
     # I4 — only the admission path issues a witness; a reader cannot mint one
     def test_reader_cannot_issue_not_applied(self):
         s = Store()
@@ -54,6 +69,23 @@ class TestInvariants(unittest.TestCase):
         self.assertIn("log_index", w["position"])
         self.assertTrue(w["permit_retry"])
         self.assertIn("exactly-once end to end", w["does_not_claim"])
+        self.assertIn("that this request_key is sealed or reserved", w["does_not_claim"])
+        self.assertEqual(
+            w["binding"],
+            "refused_at_this_store_for_this_subject_and_presented_epoch",
+        )
+
+    def test_refusal_does_not_seal_key_and_is_epoch_scoped(self):
+        s = Store()
+        old = s.grant("x")
+        s.revoke("x")
+        witness = s.apply_effect(old, "k")
+        fresh = s.grant("x")
+        applied = s.apply_effect(fresh, "k")
+        self.assertEqual(witness["decision"], "NOT_APPLIED")
+        self.assertEqual(applied["decision"], "APPLIED")
+        self.assertFalse(applied["replay"])
+        self.assertEqual(s.effects, ["k"])
 
     # I5 — under the fence, no APPLIED entry survives a preceding REVOKE
     def test_no_admission_after_revocation(self):

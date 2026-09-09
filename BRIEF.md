@@ -78,18 +78,18 @@ naming the **epistemic** half — which party may emit which verdict.
 ## 3. Experiment
 
 Files (this workspace, `research/fence/`):
-- `authority_fence.py` — 487 lines, stdlib only, offline, no network.
-  sha256 `973830d4111e8c33f427e190b38a73d86d256b02cda2b3ff5ec80333b27d7363`
-- `test_authority_fence.py` — 116 lines, unittest.
-  sha256 `95d1bf639f6f0390f7c05193a24bb2b34e9812b96cbec240cf7e9063a8f373fe`
+- `authority_fence.py` — stdlib only, offline, no network.
+  sha256 `12a80c590366c5c65b56a1dc0eb9d5bad04036e4821dc48a674e74bb36201d23`
+- `test_authority_fence.py` — unittest.
+  sha256 `7ca76f10ffdb3c86e89ddcdd453990e826e4cd20ebec89017445bdc7db215559`
 
 Run: `python3 authority_fence.py --fuzz 200` (JSON report, exit 0 iff all expectations met);
 `python3 -m unittest test_authority_fence -v` (11 tests).
 
 ### Model
 A `Store` with an append-only hash-chained log (`GRANT | REVOKE | APPLIED | REFUSED`), a
-monotonic per-subject `epoch` (the fencing token), an idempotency map keyed by `request_key`,
-and one guarded side-effect list. An `Authority` is a frozen snapshot a worker holds after
+monotonic per-subject `epoch` (the fencing token), an idempotency map keyed by
+`(subject, request_key)`, and one guarded side-effect list. An `Authority` is a frozen snapshot a worker holds after
 reading: grant id, subject, epoch, the log index the read saw, and — deliberately recorded —
 `read_said="VALID"`, so the artifact carries the true-but-useless read.
 
@@ -127,9 +127,10 @@ Store-issued NOT_APPLIED:
  "observed":{"store_epoch":2,"revoked":true},
  "position":{"log_index":2,"prev_head":"e6dd148d…","head":"c5d9e5fb…"},
  "issued_by":"store:admission",
- "binding":"at_most_once_admission_of_this_request_key_at_this_store",
- "does_not_claim":["no effect outside this store","exactly-once end to end",
-                   "the worker stopped running","a global order of wall-clock time"],
+ "binding":"refused_at_this_store_for_this_subject_and_presented_epoch",
+ "does_not_claim":["no effect outside this store","that this request_key is sealed or reserved",
+                   "exactly-once end to end","the worker stopped running",
+                   "a global order of wall-clock time"],
  "permit_retry":true}
 ```
 Reader-issued honest output:
@@ -151,9 +152,10 @@ Two schema decisions carry the argument:
 - I2 admission = read epoch + decide + append in **one** critical section (violating this *is*
   the positive control).
 - I3 at most one APPLIED per `(subject, request_key)`; replay returns the stored receipt with
-  `replay:true` and appends no second effect.
+  `replay:true` and appends no second effect. The same request key is independent across subjects.
 - I4 a NOT_APPLIED witness is issued only by the admission path and names a log position;
-  a reader can verify one, no reader can mint one.
+  a reader can verify one, no reader can mint one. The witness is scoped to this store,
+  subject, and presented epoch; it does not seal the request key for later calls.
 - I5 under the fence, no APPLIED entry follows a REVOKE for the same subject.
 - Chain: every entry's `prev_head` equals the previous entry's `head`.
 
@@ -175,9 +177,10 @@ absolutely — a lying or forked store is out of scope, and this is the same non
 store, and inherits WHO and WHAT unclosed.
 
 **How to avoid claiming real-world exactly-once.** Say "at-most-once admission of this
-request_key at this store", never "exactly-once". End-to-end exactly-once across an unreliable
-channel is not achievable; what is achievable is at-most-once admission plus a retry that is
-safe *because a witness authorised it*. The `does_not_claim` array should appear verbatim in the
+(subject, request_key) at this store", never "exactly-once". A refusal witness is epoch-scoped
+and does not seal the key; a later call is evaluated afresh. End-to-end exactly-once across an
+unreliable channel is not achievable; what is achievable is at-most-once admission plus a retry
+that is safe *because a witness authorised it*.  The `does_not_claim` array should appear verbatim in the
 article so the limit travels with the artifact. Use bounded verbs throughout, per arden's
 protocol: "refused at this store at this log index", not "the action did not happen".
 
