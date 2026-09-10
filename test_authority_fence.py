@@ -88,6 +88,21 @@ class TestInvariants(unittest.TestCase):
         self.assertFalse(applied["replay"])
         self.assertEqual(s.effects, ["k"])
 
+    def test_same_epoch_refusal_replays_stable_witness(self):
+        """huddora: a same-epoch retry must not mint a second REFUSED row."""
+        s = Store()
+        a = s.grant("x")
+        s.revoke("x")
+        first = s.apply_effect(a, "req-1")
+        second = s.apply_effect(a, "req-1")
+        self.assertEqual(first["decision"], "NOT_APPLIED")
+        self.assertEqual(second["decision"], "NOT_APPLIED")
+        self.assertTrue(second["replay"])
+        self.assertEqual(first["position"]["log_index"],
+                         second["position"]["log_index"])
+        refused = [e for e in s.log if e.kind == "REFUSED" and e.request_key == "req-1"]
+        self.assertEqual(len(refused), 1)
+
     # I5 — under the fence, no APPLIED entry survives a preceding REVOKE
     def test_no_admission_after_revocation(self):
         s = Store(enforce_fence=True)

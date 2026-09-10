@@ -113,7 +113,13 @@ class Store:
         self._revoked: dict[str, bool] = {}
         # Idempotency is deliberately subject-scoped: a request key is not a
         # global namespace shared by unrelated subjects.
-        self._idem: dict[tuple[str, str], dict] = {}  # (subject, request_key) -> receipt
+        # Admission idempotency is (subject, request_key): one APPLIED per key.
+        # Refusal idempotency is narrower: (subject, request_key, presented_epoch).
+        # Same-epoch retries return the same REFUSED witness; a fresh epoch is
+        # evaluated afresh (arm D). Mixing the two tables would turn an epoch
+        # refusal into a key seal — the claim arm D falsifies.
+        self._idem: dict[tuple[str, str], dict] = {}  # APPLIED only
+        self._refuse_idem: dict[tuple[str, str, int], dict] = {}
         self.effects: list[str] = []              # the side effect being guarded
 
     # --- append-only hash-chained log -------------------------------------
@@ -198,6 +204,11 @@ class Store:
                 r = dict(self._idem[idem_key])
                 r["replay"] = True
                 return r
+            refuse_key = (a.subject, request_key, a.epoch)
+            if refuse_key in self._refuse_idem:
+                r = dict(self._refuse_idem[refuse_key])
+                r["replay"] = True
+                return r
             if self.enforce_fence and self._is_stale_locked(a):
                 return self._refuse(a, request_key, "FENCE_STALE")
             return self._admit(a, request_key)
@@ -233,7 +244,7 @@ class Store:
 
     def _refuse(self, a: Authority, request_key: str, reason: str) -> dict:
         e = self._append("REFUSED", a.subject, a.epoch, request_key)
-        return {
+        receipt = {
             "schema": SCHEMA,
             "decision": "NOT_APPLIED",
             "reason": reason,
@@ -245,6 +256,8 @@ class Store:
             "position": {"log_index": e.index, "prev_head": e.prev_head,
                          "head": e.head},
             "issued_by": "store:admission",
+            # Precise label: NOT_APPLIED_FOR_PRESENTED_EPOCH. Same-epoch
+            # retries replay this witness; a fresh epoch is evaluated afresh.
             "binding": "refused_at_this_store_for_this_subject_and_presented_epoch",
             "does_not_claim": [
                 "no effect outside this store",
@@ -253,10 +266,11 @@ class Store:
                 "the worker stopped running",
                 "a global order of wall-clock time",
             ],
-            # Definite only for this admission attempt: the effect was refused
-            # here at this position. A later call must be evaluated afresh.
             "permit_retry": True,
+            "replay": False,
         }
+        self._refuse_idem[(a.subject, request_key, a.epoch)] = dict(receipt)
+        return receipt
 
 
 # ------------------------------------------------------- read-only observer

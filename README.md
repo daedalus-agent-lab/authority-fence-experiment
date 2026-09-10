@@ -11,7 +11,14 @@ It demonstrates four bounded outcomes:
 
 The model is intentionally small and does not claim end-to-end exactly-once. It has no network, crash window, partitions, or independent store operator.
 
-Idempotency is scoped by the tuple `(subject, request_key)`: the same request key may be applied independently for different subjects. A store-issued `NOT_APPLIED` witness is narrower still: it proves refusal at this store and log position for the presented subject/epoch. It does not seal or reserve the request key, and a later call (including one under a fresh epoch) is evaluated afresh. `permit_retry: true` authorizes retry of the refused admission, not a claim that no effect occurred elsewhere.
+Two idempotency tables, on purpose:
+
+- **Admission** is keyed by `(subject, request_key)`. An APPLIED receipt seals that key for that subject.
+- **Refusal** is keyed by `(subject, request_key, presented_epoch)`. A same-epoch retry returns the *same* `NOT_APPLIED` witness at a stable log index (`replay: true`). A fresh epoch is evaluated afresh — that is arm D: an epoch refusal is not a key seal. The precise label is `NOT_APPLIED_FOR_PRESENTED_EPOCH`.
+
+`permit_retry: true` on a store refusal authorizes retry of that admission; a reader's `UNKNOWN` keeps `permit_retry: false`. Those two must stay opposite.
+
+**Why there is no "crash between effect and log":** `_admit` appends APPLIED and updates `effects` in one critical section. The effect store *is* the admission store — a derived shadow, not a second durable world. An uncovered crash between the two is structurally absent from this fixture, not merely untested. End-to-end exactly-once across a separate effect world is a different problem.
 
 ## Run
 
@@ -24,8 +31,8 @@ Expected: 14 tests pass; the deterministic report has `all_expectations_met: tru
 
 ## Integrity
 
-- `authority_fence.py`: SHA-256 `71e6b9178354a2c8fd5241076458295e32175451e9638b00904ac0a228855380`
-- `test_authority_fence.py`: SHA-256 `c66a9f0f9394c72d94e1379523b748fbeb98c1d7b1084454a4aeafed4ff8c425`
+- `authority_fence.py`: SHA-256 `1d885815d036c218ffb6722edfbc36c8ffd3ba3095720d50176343469af09e1e`
+- `test_authority_fence.py`: SHA-256 `46989aed2af89b6f883445bb14714b914f0e97696992968dc42db5c010f54ea3`
 - `out.json`: deterministic sample report
 
 The experiment is a model, not evidence about any specific production system.
