@@ -115,9 +115,10 @@
           "head": "c5d9e5fbf727b262d1ce8d07d8a44dcac97e86f552e5e0d186462f43f00956eb"
         },
         "issued_by": "store:admission",
-        "binding": "at_most_once_admission_of_this_request_key_at_this_store",
+        "binding": "refused_at_this_store_for_this_subject_and_presented_epoch",
         "does_not_claim": [
           "no effect outside this store",
+          "that this request_key is sealed or reserved",
           "exactly-once end to end",
           "the worker stopped running",
           "a global order of wall-clock time"
@@ -218,6 +219,119 @@
       },
       "falsified": true,
       "conclusion": "the reader's NOT_APPLIED was refuted 1 step later by the same log it was read from; UNKNOWN with permit_retry=false was the only claim that stayed true"
+    },
+    {
+      "arm": "D_epoch_refusal_does_not_seal_the_key",
+      "refusal_under_stale_epoch": {
+        "schema": "authority-fence-witness/1",
+        "decision": "NOT_APPLIED",
+        "reason": "FENCE_STALE",
+        "scope": {
+          "store_id": "D-fenced",
+          "subject": "agent-x",
+          "request_key": "req-K"
+        },
+        "presented": {
+          "grant_id": "grant-agent-x-1",
+          "epoch": 1
+        },
+        "observed": {
+          "store_epoch": 2,
+          "revoked": true
+        },
+        "position": {
+          "log_index": 2,
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "70762451d72b5724404c354dd3a6f43302b62e91b47a95d1a7a0d920bf734c38"
+        },
+        "issued_by": "store:admission",
+        "binding": "refused_at_this_store_for_this_subject_and_presented_epoch",
+        "does_not_claim": [
+          "no effect outside this store",
+          "that this request_key is sealed or reserved",
+          "exactly-once end to end",
+          "the worker stopped running",
+          "a global order of wall-clock time"
+        ],
+        "permit_retry": true
+      },
+      "second_apply_same_key_fresh_epoch": {
+        "schema": "authority-fence-witness/1",
+        "decision": "APPLIED",
+        "scope": {
+          "store_id": "D-fenced",
+          "subject": "agent-x",
+          "request_key": "req-K"
+        },
+        "presented": {
+          "grant_id": "grant-agent-x-3",
+          "epoch": 3
+        },
+        "observed": {
+          "store_epoch": 3,
+          "revoked": false
+        },
+        "position": {
+          "log_index": 4,
+          "prev_head": "b6d024ce7658746ca34019f990de7a09a0607e4cc936135ed6eac6708c1aa83e",
+          "head": "1a7322d4fde9fd4519adf3a87bfa47244b9a7e3deec186028e93a3b3b586ac94"
+        },
+        "issued_by": "store:admission",
+        "replay": false
+      },
+      "effects": [
+        "req-K"
+      ],
+      "log": [
+        {
+          "index": 0,
+          "kind": "GRANT",
+          "subject": "agent-x",
+          "epoch": 1,
+          "request_key": null,
+          "prev_head": "0000000000000000000000000000000000000000000000000000000000000000",
+          "head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090"
+        },
+        {
+          "index": 1,
+          "kind": "REVOKE",
+          "subject": "agent-x",
+          "epoch": 2,
+          "request_key": null,
+          "prev_head": "66c0d29acf274eaa48d2eaac84dc3ac4f9879dc9a8fad881a8ff880406399090",
+          "head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240"
+        },
+        {
+          "index": 2,
+          "kind": "REFUSED",
+          "subject": "agent-x",
+          "epoch": 1,
+          "request_key": "req-K",
+          "prev_head": "e6dd148dbbf3c8f5fb683adcfa806e79ec064f4f0a03815c5d73081a695b9240",
+          "head": "70762451d72b5724404c354dd3a6f43302b62e91b47a95d1a7a0d920bf734c38"
+        },
+        {
+          "index": 3,
+          "kind": "GRANT",
+          "subject": "agent-x",
+          "epoch": 3,
+          "request_key": null,
+          "prev_head": "70762451d72b5724404c354dd3a6f43302b62e91b47a95d1a7a0d920bf734c38",
+          "head": "b6d024ce7658746ca34019f990de7a09a0607e4cc936135ed6eac6708c1aa83e"
+        },
+        {
+          "index": 4,
+          "kind": "APPLIED",
+          "subject": "agent-x",
+          "epoch": 3,
+          "request_key": "req-K",
+          "prev_head": "b6d024ce7658746ca34019f990de7a09a0607e4cc936135ed6eac6708c1aa83e",
+          "head": "1a7322d4fde9fd4519adf3a87bfa47244b9a7e3deec186028e93a3b3b586ac94"
+        }
+      ],
+      "key_seal_claim_falsified": true,
+      "receipts_for_key_K": 2,
+      "conclusion": "the REFUSED row and the later APPLIED row are two receipts under one key; the epoch refusal never reserved K, so CLOSED(K)@F is not a rename of NOT_APPLIED_FOR_PRESENTED_EPOCH"
     }
   ],
   "controls": [
@@ -232,15 +346,15 @@
     {
       "mode": "broken_fence_positive_control",
       "trials": 200,
-      "applied_after_revoke": 103,
+      "applied_after_revoke": 105,
       "examples": [
         {
-          "trial": 2,
+          "trial": 3,
           "revoke_index": 1,
           "applied_index": 2
         },
         {
-          "trial": 3,
+          "trial": 4,
           "revoke_index": 1,
           "applied_index": 2
         }
@@ -255,7 +369,9 @@
     "B_witness_issued_by": "store:admission",
     "C_naive_reader_claim_falsified": true,
     "C_honest_decision": "UNKNOWN",
-    "C_permit_retry": false
+    "C_permit_retry": false,
+    "D_key_seal_claim_falsified": true,
+    "D_receipts_for_one_key": 2
   },
   "all_expectations_met": true
 }

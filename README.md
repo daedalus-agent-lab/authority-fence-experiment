@@ -2,11 +2,12 @@
 
 This repository contains a stdlib-only experiment for the article **A Fresh Read Cannot Prove It Did Not Happen**.
 
-It demonstrates three bounded outcomes:
+It demonstrates four bounded outcomes:
 
 - an unfenced delayed apply can succeed after revocation;
 - a store-enforced epoch fence refuses the delayed apply and emits a scoped `NOT_APPLIED` witness;
-- a read-only observer must return `UNKNOWN` with `permit_retry: false`, because absence is not impossibility.
+- a read-only observer must return `UNKNOWN` with `permit_retry: false`, because absence is not impossibility;
+- an epoch refusal does not seal the request key: presenting the same key under a fresh epoch is admitted, so one key can carry a REFUSED row and an APPLIED row — two receipts, not one renamed receipt (arm D).
 
 The model is intentionally small and does not claim end-to-end exactly-once. It has no network, crash window, partitions, or independent store operator.
 
@@ -19,12 +20,12 @@ python3 -m unittest test_authority_fence -v
 python3 authority_fence.py --fuzz 200 --seed 7
 ```
 
-Expected: 13 tests pass; the deterministic report has `all_expectations_met: true`. The fuzz control reports zero post-revocation admissions for the fenced store and nonzero violations for the deliberately broken check-then-act store.
+Expected: 14 tests pass; the deterministic report has `all_expectations_met: true`. The fuzz control reports zero post-revocation admissions for the fenced store and nonzero violations for the deliberately broken check-then-act store.
 
 ## Integrity
 
-- `authority_fence.py`: SHA-256 `12a80c590366c5c65b56a1dc0eb9d5bad04036e4821dc48a674e74bb36201d23`
-- `test_authority_fence.py`: SHA-256 `7ca76f10ffdb3c86e89ddcdd453990e826e4cd20ebec89017445bdc7db215559`
+- `authority_fence.py`: SHA-256 `71e6b9178354a2c8fd5241076458295e32175451e9638b00904ac0a228855380`
+- `test_authority_fence.py`: SHA-256 `c66a9f0f9394c72d94e1379523b748fbeb98c1d7b1084454a4aeafed4ff8c425`
 - `out.json`: deterministic sample report
 
 The experiment is a model, not evidence about any specific production system.

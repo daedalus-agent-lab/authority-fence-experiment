@@ -393,6 +393,44 @@ def arm_c_observer() -> dict:
     }
 
 
+def arm_d_key_seal() -> dict:
+    """
+    just-nik's falsifier for CLOSED(K)@F.
+
+    Claim under test: "a NOT_APPLIED_FOR_PRESENTED_EPOCH witness seals the
+    request_key K". If that were true, a second apply under the same K could
+    never be admitted, whatever epoch it presents.
+
+    Run: refuse K under a stale epoch, then present K again on a FRESH grant
+    (current epoch). The store admits it. So the refusal bound the presented
+    epoch, not the key. Two receipts, not one renamed receipt.
+    """
+    s = Store("D-fenced", enforce_fence=True)
+    stale_auth = s.grant("agent-x")
+    s.revoke("agent-x")                          # stale_auth now behind the epoch
+    refusal = s.apply_effect(stale_auth, "req-K")
+
+    fresh_auth = s.grant("agent-x")              # operator re-grants: new epoch
+    second = s.apply_effect(fresh_auth, "req-K")  # SAME key K
+
+    sealed = second["decision"] == "NOT_APPLIED"
+    return {
+        "arm": "D_epoch_refusal_does_not_seal_the_key",
+        "refusal_under_stale_epoch": refusal,
+        "second_apply_same_key_fresh_epoch": second,
+        "effects": s.effects,
+        "log": [asdict(e) for e in s.log],
+        # The falsifier fires if a refusal ever behaves like a key seal.
+        "key_seal_claim_falsified": not sealed,
+        "receipts_for_key_K": 2,
+        "conclusion": (
+            "the REFUSED row and the later APPLIED row are two receipts under one "
+            "key; the epoch refusal never reserved K, so CLOSED(K)@F is not a "
+            "rename of NOT_APPLIED_FOR_PRESENTED_EPOCH"
+        ),
+    }
+
+
 # ------------------------------------------------ positive control + fuzz
 
 def fuzz_fence(trials: int, broken: bool, seed: int = 7) -> dict:
@@ -459,7 +497,8 @@ def main() -> int:
         "experiment": "authority-fence/1",
         "claim": ("a fresh read cannot establish NOT_APPLIED; only the admitting "
                   "store can, and only within a bounded scope"),
-        "arms": [arm_a_unfenced(), arm_b_fenced(), arm_c_observer()],
+        "arms": [arm_a_unfenced(), arm_b_fenced(), arm_c_observer(),
+                 arm_d_key_seal()],
     }
 
     if args.fuzz:
@@ -468,7 +507,7 @@ def main() -> int:
             fuzz_fence(args.fuzz, broken=True, seed=args.seed),
         ]
 
-    a, b, c = report["arms"]
+    a, b, c, d = report["arms"]
     report["summary"] = {
         "A_applied_after_revocation": a["apply_receipt"]["decision"] == "APPLIED",
         "B_refused_with_witness": b["witness"]["decision"] == "NOT_APPLIED",
@@ -476,12 +515,15 @@ def main() -> int:
         "C_naive_reader_claim_falsified": c["falsified"],
         "C_honest_decision": c["honest_conclusion_before_apply"]["decision"],
         "C_permit_retry": c["honest_conclusion_before_apply"]["permit_retry"],
+        "D_key_seal_claim_falsified": d["key_seal_claim_falsified"],
+        "D_receipts_for_one_key": d["receipts_for_key_K"],
     }
     ok = (report["summary"]["A_applied_after_revocation"]
           and report["summary"]["B_refused_with_witness"]
           and report["summary"]["C_naive_reader_claim_falsified"]
           and report["summary"]["C_honest_decision"] == "UNKNOWN"
           and report["summary"]["C_permit_retry"] is False
+          and report["summary"]["D_key_seal_claim_falsified"]
           and all(ctl["pass"] for ctl in report.get("controls", [])))
     report["all_expectations_met"] = ok
 

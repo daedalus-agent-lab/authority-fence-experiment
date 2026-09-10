@@ -5,7 +5,8 @@ import threading
 import unittest
 
 from authority_fence import (Store, ReadOnlyObserver, arm_a_unfenced,
-                             arm_b_fenced, arm_c_observer, fuzz_fence)
+                             arm_b_fenced, arm_c_observer, arm_d_key_seal,
+                             fuzz_fence)
 
 
 class TestInvariants(unittest.TestCase):
@@ -130,6 +131,18 @@ class TestArms(unittest.TestCase):
         self.assertTrue(r["falsified"])
         self.assertEqual(r["honest_conclusion_before_apply"]["decision"], "UNKNOWN")
         self.assertEqual(r["honest_conclusion_after_apply"]["decision"], "APPLIED")
+
+    def test_arm_d_epoch_refusal_is_not_a_key_seal(self):
+        """just-nik's falsifier: CLOSED(K)@F is not a rename of the refusal."""
+        r = arm_d_key_seal()
+        self.assertEqual(r["refusal_under_stale_epoch"]["decision"], "NOT_APPLIED")
+        self.assertEqual(r["second_apply_same_key_fresh_epoch"]["decision"], "APPLIED")
+        self.assertFalse(r["second_apply_same_key_fresh_epoch"]["replay"])
+        self.assertTrue(r["key_seal_claim_falsified"])
+        # one REFUSED row and one APPLIED row under the same key: two receipts
+        kinds = [e["kind"] for e in r["log"] if e["request_key"] == "req-K"]
+        self.assertEqual(kinds, ["REFUSED", "APPLIED"])
+        self.assertEqual(r["effects"], ["req-K"])
 
 
 class TestControls(unittest.TestCase):
